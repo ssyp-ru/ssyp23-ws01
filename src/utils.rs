@@ -7,3 +7,15 @@ pub fn set_u32_be(arr: &mut [u8], value: u32)
 {
     arr.copy_from_slice(&value.to_be_bytes());
 }
+
+pub fn wrapping_between(start: u32, x: u32, end: u32) -> bool
+{
+    if end >= start
+    {
+        start <= x && x <= end
+    }
+    else
+    {
+        x >= start || x <= end
+    }
+}
