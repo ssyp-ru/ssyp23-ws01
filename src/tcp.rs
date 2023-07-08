@@ -27,7 +27,7 @@ impl BitOr<TcpFlag> for TcpFlag
 }
 
 #[derive(Debug)]
-pub struct TcpPacket<'a>
+pub struct TcpHeader<'a>
 {
     pub source_port: u16,
     pub dest_port: u16,
@@ -41,14 +41,14 @@ pub struct TcpPacket<'a>
     pub options: &'a[u8],
 }
 
-impl<'a> TcpPacket<'a>
+impl<'a> TcpHeader<'a>
 {
     // https://en.wikipedia.org/wiki/Transmission_Control_Protocol#TCP_segment_structure
-    pub fn new(data: &'a [u8]) -> Result<(TcpPacket<'a>, &[u8])>
+    pub fn new(data: &'a [u8]) -> Result<(TcpHeader<'a>, &[u8])>
     {
         let data_offset = data[12] >> 4;
 
-        Ok((TcpPacket
+        Ok((TcpHeader
         {
             source_port: u16::from_be_bytes(data[0..2].try_into()?),
             dest_port: u16::from_be_bytes(data[2..4].try_into()?),
@@ -128,9 +128,9 @@ impl<'a> TcpPacket<'a>
     }
 }
 
-pub fn build_tcp_packet<'a>(orig_ip: &ipv4::IPv4Packet, orig_tcp: &TcpPacket, flags: u8, seq_num: u32, ack_num: u32, text: &'a [u8]) -> Vec<u8>
+pub fn build_tcp_packet(orig_ip: &ipv4::IPv4Header, orig_tcp: &TcpHeader, flags: u8, seq_num: u32, ack_num: u32, text: &[u8]) -> Vec<u8>
 {
-    let mut tcp = TcpPacket
+    let mut tcp = TcpHeader
     {
         source_port: orig_tcp.dest_port,
         dest_port: orig_tcp.source_port,
@@ -144,7 +144,7 @@ pub fn build_tcp_packet<'a>(orig_ip: &ipv4::IPv4Packet, orig_tcp: &TcpPacket, fl
         options: &[0; 0],
     };
 
-    let mut ip = ipv4::IPv4Packet
+    let mut ip = ipv4::IPv4Header
     {
         version: 4,
         ihl: 5,

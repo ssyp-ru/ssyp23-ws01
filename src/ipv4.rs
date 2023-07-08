@@ -3,7 +3,7 @@ use anyhow::Result;
 use crate::utils::*;
 
 #[derive(Debug)]
-pub struct IPv4Packet<'a>
+pub struct IPv4Header<'a>
 {
     pub version: u8,
     pub ihl: u8,
@@ -15,20 +15,20 @@ pub struct IPv4Packet<'a>
     pub fragment_offset: u16,
     pub time_to_live: u8,
     pub protocol: u8,
-    pub header_checksum: u16, // TODO: verify the checksum
+    pub header_checksum: u16,
     pub source_ip: u32,
     pub dest_ip: u32,
     pub options: &'a[u8],
 }
 
-impl<'a> IPv4Packet<'a>
+impl<'a> IPv4Header<'a>
 {
     // https://en.wikipedia.org/wiki/Internet_Protocol_version_4#Header
-    pub fn new(data: &'a [u8]) -> Result<(IPv4Packet<'a>, &[u8])>
+    pub fn new(data: &'a [u8]) -> Result<(IPv4Header<'a>, &[u8])>
     {
         let ihl = data[0] & 0b00001111;
 
-        Ok((IPv4Packet
+        Ok((IPv4Header
         {
             version: data[0] >> 4,
             ihl,
@@ -55,7 +55,7 @@ impl<'a> IPv4Packet<'a>
         data[1] = self.ecn + (self.dscp << 2);
         set_u16_be(&mut data[2..4], self.total_length);
         set_u16_be(&mut data[4..6], self.identification);
-        set_u16_be(&mut data[6..8], self.fragment_offset + (self.flags as u16) << 13);
+        set_u16_be(&mut data[6..8], (self.fragment_offset + (self.flags as u16)) << 13);
         data[8] = self.time_to_live;
         data[9] = self.protocol;
         set_u16_be(&mut data[10..12], self.header_checksum);
@@ -68,8 +68,13 @@ impl<'a> IPv4Packet<'a>
 
     pub fn calc_checksum(&self) -> u16
     {
-        let data = self.serialize();
+        let mut data = self.serialize().to_vec();
         let mut sum = 0;
+        
+        if data.len() % 2 != 0
+        {
+            data.push(0);
+        }
 
         for i in (0..data.len()).step_by(2)
         {
