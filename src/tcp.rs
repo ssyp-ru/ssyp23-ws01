@@ -68,9 +68,9 @@ impl<'a> TcpHeader<'a>
         self.data_offset as usize * 4
     }
 
-    pub fn serialize(&self) -> [u8; 56]
+    pub fn serialize(&self) -> Vec<u8>
     {
-        let mut data = [0; 56];
+        let mut data = vec![0; 56];
 
         set_u16_be(&mut data[0..2], self.source_port);
         set_u16_be(&mut data[2..4], self.dest_port);

@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 
 use anyhow::Result;
 use chrono::Local;
+use colored::Colorize;
 use rand::Rng;
 use tun_tap::{ Iface, Mode };
 
@@ -12,6 +13,7 @@ use ipv4::IPv4Header;
 
 mod tcp;
 use tcp::{ TcpHeader, TcpFlag, build_tcp_packet };
+use utils::wrapping_between;
 
 #[derive(Debug, PartialEq)]
 enum State
@@ -91,29 +93,6 @@ fn main() -> Result<()>
             continue;
         }
 
-        if conn.state == State::Estab
-        {
-            if !tcp.get_flag(TcpFlag::Ack)
-            {
-                println!("ACK not set");
-                continue;
-            }
-
-            conn.send_window = tcp.window_size;
-
-            if tcp.ack_number > conn.send_window as u32 + conn.send_seq
-            {
-                println!("Invalid ACK");
-                continue;
-            }
-
-            if tcp.sequence_number != conn.recv_seq
-            {
-                println!("invalid client sequence number {} (should be {})", tcp.sequence_number, conn.recv_seq);
-                continue;
-            }
-        }
-
         match conn.state
         {
             State::Listen if tcp.get_flag(TcpFlag::Syn) =>
@@ -138,6 +117,7 @@ fn main() -> Result<()>
                 {
                     println!("got invalid ack, sending RST");
 
+                    conn.state = State::Closed;
                     iface.send(build_tcp_packet(
                         &ip,
                         &tcp,
@@ -183,9 +163,36 @@ fn main() -> Result<()>
             },
             State::Estab =>
             {
+                if !tcp.get_flag(TcpFlag::Ack)
+                {
+                    println!("ACK not set");
+                    continue;
+                }
+
+                if tcp.sequence_number != conn.recv_seq
+                    || !wrapping_between(
+                        conn.send_seq,
+                        tcp.ack_number,
+                        conn.send_seq.wrapping_add(conn.send_window as u32))
+                {
+                    println!("sending an empty packet");
+
+                    iface.send(build_tcp_packet(
+                        &ip,
+                        &tcp,
+                        TcpFlag::Ack as u8,
+                        conn.send_seq,
+                        conn.recv_seq,
+                        &[0; 0],
+                    ).as_slice()).expect("failed to send an empty packet");
+
+                    continue;
+                }
+
                 println!("RECV {tcp:?}");
                 println!("{data:02X?}");
 
+                conn.send_window = tcp.window_size;
                 conn.recv_seq = conn.recv_seq.wrapping_add(data.len() as u32);
 
                 if conn.send_seq < tcp.ack_number
@@ -195,7 +202,8 @@ fn main() -> Result<()>
                     conn.packet_queue.drain(..amount as usize);
                 }
                 
-                match std::str::from_utf8(data).unwrap().to_lowercase().trim()
+                let msg = std::str::from_utf8(data).unwrap();
+                match msg.to_lowercase().trim()
                 {
                     _ if data.is_empty() => { continue; },
                     "fin" =>
@@ -228,22 +236,22 @@ fn main() -> Result<()>
                     },
                     "help" =>
                     {
-                        let msg = "\x1B[32;1m----- Help -----\x1B[22m
-fin - Close the connection
+                        let msg = format!("{}\nfin - Close the connection
 rst - Reset the connection
 time - Show server time
 conn - Show the connection struct
-clear - Clear the screen\x1B[0m";
+clear - Clear the screen", "----- Help -----".bold()).green().to_string();
                         conn.packet_queue.extend(msg.as_bytes());
                     },
                     "time" =>
                     {
-                        let msg = format!("\x1B[36mTime: \x1B[1m{}\x1B[0m", Local::now().format("%H:%M:%S"));
+                        let msg = format!("{} {}", "Time:".cyan(), Local::now().format("%H:%M:%S").to_string().cyan().bold());
                         conn.packet_queue.extend(msg.as_bytes());
                     },
                     "conn" =>
                     {
-                        let msg = format!("\x1B[35mconn = \x1B[1m{conn:?}\x1B[0m");
+                        let msg = format!("{conn:?}");
+                        let msg = format!("{} {}", "conn =".magenta(), msg.magenta().bold());
                         conn.packet_queue.extend(msg.as_bytes()); 
                     },
                     "clear" =>
@@ -252,9 +260,9 @@ clear - Clear the screen\x1B[0m";
                     },
                     _ =>
                     {
-                        let msg = "\x1B[31;1mInvalid command. Try \"\x1B[4mhelp\x1B[24m\"\x1B[0m";
+                        let msg = format!("Invalid command. Try \"{}\"", "help".underline()).red().bold().to_string();
                         conn.packet_queue.extend(msg.as_bytes());
-                    }
+                    },
                 }
 
                 conn.packet_queue.extend("\n> ".as_bytes());

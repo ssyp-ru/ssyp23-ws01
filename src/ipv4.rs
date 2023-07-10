@@ -47,9 +47,9 @@ impl<'a> IPv4Header<'a>
         }, &data[ihl as usize * 4..]))
     }
 
-    pub fn serialize(&self) -> [u8; 56]
+    pub fn serialize(&self) -> Vec<u8>
     {
-        let mut data = [0; 56];
+        let mut data = vec![0; 56];
 
         data[0] = self.ihl + (self.version << 4);
         data[1] = self.ecn + (self.dscp << 2);
@@ -68,7 +68,7 @@ impl<'a> IPv4Header<'a>
 
     pub fn calc_checksum(&self) -> u16
     {
-        let mut data = self.serialize().to_vec();
+        let mut data = self.serialize();
         let mut sum = 0;
         
         if data.len() % 2 != 0
