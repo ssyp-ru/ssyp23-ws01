@@ -1,4 +1,4 @@
-use std::{net::Ipv4Addr, ops::Index};
+use std::net::Ipv4Addr;
 
 #[derive(Debug)]
 pub struct IPv4Header {

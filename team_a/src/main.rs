@@ -1,12 +1,14 @@
 use tun_tap::{Iface, Mode};
 
 mod ipv4_header;
+mod tcp_header;
 
 fn main() {
     let iface = Iface::new("tun0", Mode::Tun).expect("Failed to create a TUN device");
     
     let mut buffer = vec![0; 1504]; // MTU + 4 for the header
     let mut counter = 0;
+
     loop {
         let n = iface.recv(&mut buffer).unwrap();
         let packet = &buffer[..n];
@@ -19,6 +21,11 @@ fn main() {
             println!("{:?}", ipv4_slice);
             println!("{:?}", new_buffer);
             assert_eq!(true, ipv4_slice.starts_with(&new_buffer));
+
+            if ipv4_slice[9] == 6 {
+                println!("TCP");
+                println!("{:?}", tcp_header::parse(&ipv4_slice[new_buffer.len()..]));
+            }
         }
         counter += 1;
     }
