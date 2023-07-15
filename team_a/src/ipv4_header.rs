@@ -19,14 +19,14 @@ pub struct IPv4Header {
 pub fn get_checksum(buffer: &[u8]) -> u16 {
     let mut sum: u16 = 0;
 
-    for (index, chunk) in buffer.chunks(2).enumerate() { 
+    for (index, chunk) in buffer.chunks(2).enumerate() {
         if index == 5 {
             continue;
         }
         let num = ((chunk[0] as u16) << 8) | chunk[1] as u16;
         let (new_sum, is_overflowed) = sum.overflowing_add(num);
         sum = new_sum;
-        if is_overflowed  {
+        if is_overflowed {
             sum += 1;
         }
     }
@@ -59,7 +59,6 @@ pub fn pack(buffer: &mut [u8], ipv4_header: IPv4Header) -> usize {
     buffer[7] = ipv4_header.fragment_offset.to_be_bytes()[1];
     buffer[8] = ipv4_header.time_to_live;
     buffer[9] = ipv4_header.protocol;
-    // buffer[10..=11].copy_from_slice(&ipv4_header.checksum.to_be_bytes());
     buffer[10] = 0;
     buffer[11] = 0;
     buffer[12..=15].copy_from_slice(&ipv4_header.source_address.octets());
