@@ -128,12 +128,12 @@ impl<'a> TcpHeader<'a>
     }
 }
 
-pub fn build_tcp_packet(orig_ip: &ipv4::IPv4Header, orig_tcp: &TcpHeader, flags: u8, seq_num: u32, ack_num: u32, text: &[u8]) -> Vec<u8>
+pub fn build_tcp_packet(id: &ConnectionId, flags: u8, seq_num: u32, ack_num: u32, text: &[u8]) -> Vec<u8>
 {
     let mut tcp = TcpHeader
     {
-        source_port: orig_tcp.dest_port,
-        dest_port: orig_tcp.source_port,
+        source_port: id.port_dst,
+        dest_port: id.port_src,
         sequence_number: seq_num,
         ack_number: ack_num,
         data_offset: 0,
@@ -157,8 +157,8 @@ pub fn build_tcp_packet(orig_ip: &ipv4::IPv4Header, orig_tcp: &TcpHeader, flags:
         time_to_live: 64,
         protocol: 6, // tcp
         header_checksum: 0, // filled out later
-        source_ip: orig_ip.dest_ip,
-        dest_ip: orig_ip.source_ip,
+        source_ip: id.ip_dst,
+        dest_ip: id.ip_src,
         options: &[0; 0],
     };
     ip.header_checksum = ip.calc_checksum();
