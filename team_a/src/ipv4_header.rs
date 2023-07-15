@@ -2,18 +2,18 @@ use std::net::Ipv4Addr;
 
 #[derive(Debug)]
 pub struct IPv4Header {
-    version: u8,
-    ihl: u8,
-    type_of_service: u8,
-    total_length: u16,
-    identification: u16,
-    flags: u8,
-    fragment_offset: u16,
-    time_to_live: u8,
-    protocol: u8,
+    pub version: u8,
+    pub ihl: u8,
+    pub type_of_service: u8,
+    pub total_length: u16,
+    pub identification: u16,
+    pub flags: u8,
+    pub fragment_offset: u16,
+    pub time_to_live: u8,
+    pub protocol: u8,
     pub checksum: u16,
-    source_address: Ipv4Addr,
-    destination_address: Ipv4Addr,
+    pub source_address: Ipv4Addr,
+    pub destination_address: Ipv4Addr,
 }
 
 pub fn get_checksum(buffer: &[u8]) -> u16 {
