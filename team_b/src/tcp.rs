@@ -2,10 +2,9 @@ use std::ops::BitOr;
 
 use anyhow::Result;
 
-use crate::{utils::*, ipv4};
+use crate::{ipv4, utils::*};
 
-pub enum TcpFlag
-{
+pub enum TcpFlag {
     Cwr = 0b10000000,
     Ece = 0b01000000,
     Urg = 0b00100000,
@@ -13,22 +12,19 @@ pub enum TcpFlag
     Psh = 0b00001000,
     Rst = 0b00000100,
     Syn = 0b00000010,
-    Fin = 0b00000001,    
+    Fin = 0b00000001,
 }
 
-impl BitOr<TcpFlag> for TcpFlag
-{
+impl BitOr<TcpFlag> for TcpFlag {
     type Output = u8;
 
-    fn bitor(self, rhs: TcpFlag) -> Self::Output
-    {
+    fn bitor(self, rhs: TcpFlag) -> Self::Output {
         self as u8 | rhs as u8
     }
 }
 
 #[derive(Debug)]
-pub struct TcpHeader<'a>
-{
+pub struct TcpHeader<'a> {
     pub source_port: u16,
     pub dest_port: u16,
     pub sequence_number: u32,
@@ -38,38 +34,36 @@ pub struct TcpHeader<'a>
     pub window_size: u16,
     pub checksum: u16,
     pub urgent_pointer: u16,
-    pub options: &'a[u8],
+    pub options: &'a [u8],
 }
 
-impl<'a> TcpHeader<'a>
-{
+impl<'a> TcpHeader<'a> {
     // https://en.wikipedia.org/wiki/Transmission_Control_Protocol#TCP_segment_structure
-    pub fn new(data: &'a [u8]) -> Result<(TcpHeader<'a>, &[u8])>
-    {
+    pub fn new(data: &'a [u8]) -> Result<(TcpHeader<'a>, &[u8])> {
         let data_offset = data[12] >> 4;
 
-        Ok((TcpHeader
-        {
-            source_port: u16::from_be_bytes(data[0..2].try_into()?),
-            dest_port: u16::from_be_bytes(data[2..4].try_into()?),
-            sequence_number: u32::from_be_bytes(data[4..8].try_into()?),
-            ack_number: u32::from_be_bytes(data[8..12].try_into()?),
-            data_offset,
-            flags: data[13],
-            window_size: u16::from_be_bytes(data[14..16].try_into()?),
-            checksum: u16::from_be_bytes(data[16..18].try_into()?),
-            urgent_pointer: u16::from_be_bytes(data[18..20].try_into()?),
-            options: &data[20..data_offset as usize * 4],
-        }, &data[data_offset as usize * 4..]))
+        Ok((
+            TcpHeader {
+                source_port: u16::from_be_bytes(data[0..2].try_into()?),
+                dest_port: u16::from_be_bytes(data[2..4].try_into()?),
+                sequence_number: u32::from_be_bytes(data[4..8].try_into()?),
+                ack_number: u32::from_be_bytes(data[8..12].try_into()?),
+                data_offset,
+                flags: data[13],
+                window_size: u16::from_be_bytes(data[14..16].try_into()?),
+                checksum: u16::from_be_bytes(data[16..18].try_into()?),
+                urgent_pointer: u16::from_be_bytes(data[18..20].try_into()?),
+                options: &data[20..data_offset as usize * 4],
+            },
+            &data[data_offset as usize * 4..],
+        ))
     }
-    
-    pub fn size(&self) -> usize
-    {
+
+    pub fn size(&self) -> usize {
         self.data_offset as usize * 4
     }
 
-    pub fn serialize(&self) -> Vec<u8>
-    {
+    pub fn serialize(&self) -> Vec<u8> {
         let mut data = vec![0; 56];
 
         set_u16_be(&mut data[0..2], self.source_port);
@@ -86,8 +80,13 @@ impl<'a> TcpHeader<'a>
         data
     }
 
-    pub fn calc_checksum(&self, source_ip: u32, dest_ip: u32, data_length: usize, text: &[u8]) -> u16
-    {
+    pub fn calc_checksum(
+        &self,
+        source_ip: u32,
+        dest_ip: u32,
+        data_length: usize,
+        text: &[u8],
+    ) -> u16 {
         let mut data = vec![0; data_length + 12];
         let mut sum = 0;
 
@@ -98,17 +97,17 @@ impl<'a> TcpHeader<'a>
         data[12..self.size() + 12].copy_from_slice(&self.serialize()[0..self.size()]);
         data[self.size() + 12..data_length + 12].copy_from_slice(text);
 
-        if data.len() % 2 != 0
-        {
+        if data.len() % 2 != 0 {
             data.push(0);
         }
 
-        for i in (0..data.len()).step_by(2)
-        {
-            if i == 28 { continue }; // ignore the checksum field
+        for i in (0..data.len()).step_by(2) {
+            if i == 28 {
+                continue;
+            }; // ignore the checksum field
 
             sum += u16::from_be_bytes(data[i..i + 2].try_into().unwrap()) as u32;
-            
+
             sum += sum >> 16;
             sum &= 0x0000FFFF;
         }
@@ -116,22 +115,27 @@ impl<'a> TcpHeader<'a>
         !sum as u16
     }
 
-    pub fn get_flag(&self, flag: TcpFlag) -> bool
-    {
+    pub fn get_flag(&self, flag: TcpFlag) -> bool {
         self.flags & flag as u8 != 0
     }
 
-    pub fn set_flag(&mut self, flag: TcpFlag, value: bool)
-    {
-        if value { self.flags |= flag as u8 }
-        else { self.flags &= !(flag as u8) }
+    pub fn set_flag(&mut self, flag: TcpFlag, value: bool) {
+        if value {
+            self.flags |= flag as u8
+        } else {
+            self.flags &= !(flag as u8)
+        }
     }
 }
 
-pub fn build_tcp_packet(id: &ConnectionId, flags: u8, seq_num: u32, ack_num: u32, text: &[u8]) -> Vec<u8>
-{
-    let mut tcp = TcpHeader
-    {
+pub fn build_tcp_packet(
+    id: &ConnectionId,
+    flags: u8,
+    seq_num: u32,
+    ack_num: u32,
+    text: &[u8],
+) -> Vec<u8> {
+    let mut tcp = TcpHeader {
         source_port: id.port_dst,
         dest_port: id.port_src,
         sequence_number: seq_num,
@@ -144,8 +148,7 @@ pub fn build_tcp_packet(id: &ConnectionId, flags: u8, seq_num: u32, ack_num: u32
         options: &[0; 0],
     };
 
-    let mut ip = ipv4::IPv4Header
-    {
+    let mut ip = ipv4::IPv4Header {
         version: 4,
         ihl: 5,
         dscp: 0,
@@ -155,7 +158,7 @@ pub fn build_tcp_packet(id: &ConnectionId, flags: u8, seq_num: u32, ack_num: u32
         flags: 0b000,
         fragment_offset: 0,
         time_to_live: 64,
-        protocol: 6, // tcp
+        protocol: 6,        // tcp
         header_checksum: 0, // filled out later
         source_ip: id.ip_dst,
         dest_ip: id.ip_src,
